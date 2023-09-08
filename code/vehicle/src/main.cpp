@@ -1,5 +1,6 @@
 #include <Servo.h>
 #include <HCSR04.h>
+#include <Wire.h>
 
 #define SERVO_SIGNAL_PIN 10
 
@@ -25,6 +26,11 @@ UltraSonicDistanceSensor distanceSensor(trigPin, echoPin);
 const int TrigSensPin = A0;
 int val = 0;
 
+void wireReceiveEvent(int bytes){
+  int value = Wire.read();
+  Serial.println(value);
+}
+
 void setup()
 {
   
@@ -40,7 +46,12 @@ void setup()
   pinMode(in4, OUTPUT);
 
   Serial.begin(9600);
+
+  Wire.begin(1);
+  Wire.onReceive(wireReceiveEvent);
 }
+
+
 /*
 void demoOne()
 
@@ -152,10 +163,10 @@ void movements()
   if (drive > 0) {
     outA = 10;
     outB = 10;
-    if (steering = 1) {
+    if (steering == 1) {
       outB += steerSpeed;
-    } else if (steering = 2) {
-      outB += steerSpeed;
+    } else if (steering == 2) {
+      outA += steerSpeed;
     }
   } else {
     if (steering > 0) {
@@ -222,7 +233,7 @@ void movements()
 }
 
 void loop()
-{
+{/*
   foundLine = analogRead(TrigSensPin) < 100;
 
 
@@ -283,7 +294,7 @@ void loop()
   Serial.print(outA);
   Serial.print(", outB: ");
   Serial.println(outB);
-
+*/
   //val = analogRead(TrigSensPin);  // read the input pin
   //Serial.println(val);          // debug value
 
@@ -307,4 +318,6 @@ void loop()
       delay(150);
     }
   */
+
+
 }
