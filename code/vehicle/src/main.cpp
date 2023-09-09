@@ -233,7 +233,7 @@ void movements()
 }
 
 void loop()
-{/*
+{
   foundLine = analogRead(TrigSensPin) < 100;
 
 
@@ -294,7 +294,7 @@ void loop()
   Serial.print(outA);
   Serial.print(", outB: ");
   Serial.println(outB);
-*/
+
   //val = analogRead(TrigSensPin);  // read the input pin
   //Serial.println(val);          // debug value
 
