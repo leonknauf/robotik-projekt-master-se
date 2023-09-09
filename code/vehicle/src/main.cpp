@@ -1,43 +1,52 @@
-#include <Servo.h>
-#include <HCSR04.h>
-#include <Wire.h>
+/*
+ *Filename: Code Arduino N.U.T. 
+ *Author: Jonas Siebel
+ *Date: 09.09.2023
+ *Version: 1.0
+*/
 
-#define SERVO_SIGNAL_PIN 10
 
-Servo servoMotor;
+/*
+Unschön:
+1) Es gibt globale variablen
+2) Die Funktion die bei einem I2C INterrupt aufgerufen wird ist zu lang
+   Vielleicht mit Markern arbeiten und einen Teil davon ins Hauptprogramm verschieben?
+*/
 
-// Motor A
 
+//==================================libs=============================
+
+#include <Servo.h>    //servo motor lib
+#include <HCSR04.h>   //ultrasonic lib
+#include <Wire.h>     //I2C lib
+
+//==================================pins==============================
+
+//pins motor a
 int enA = 9;
 int in1 = 8;
 int in2 = 7;
 
-// Motor B
-
+//pins motor b
 int enB = 3;
 int in3 = 5;
 int in4 = 4;
 
-// Pins of HC-Sc04 sensor
+//pins ultrasonic sensor
 const int trigPin = 13;
 const int echoPin = 12;
 UltraSonicDistanceSensor distanceSensor(trigPin, echoPin);
 
-const int TrigSensPin = A0;
-int val = 0;
+//pins IR-Sensors
+const int irsenspin1 = A0;
+const int irsenspin2 = A1;
 
-void wireReceiveEvent(int bytes){
-  int value = Wire.read();
-  Serial.println(value);
-}
+
+//=========================================setup================================
 
 void setup()
 {
-  
-  servoMotor.attach(SERVO_SIGNAL_PIN, 900, 1500);
-
-  // Set all the motor control pins to outputs
-
+  //Set all the motor control pins to outputs
   pinMode(enA, OUTPUT);
   pinMode(enB, OUTPUT);
   pinMode(in1, OUTPUT);
@@ -45,237 +54,221 @@ void setup()
   pinMode(in3, OUTPUT);
   pinMode(in4, OUTPUT);
 
-  Serial.begin(9600);
+  Serial.begin(9600); //start debug
 
-  Wire.begin(1);
-  Wire.onReceive(wireReceiveEvent);
+  Wire.begin(1);  //start I2C
+  Wire.onReceive(wireReceiveEvent); //interrupt through I2C on
 }
 
+//=================================global variables==============================
 
-/*
-void demoOne()
+bool operatingmode = true;    //true -> remote controlled, false -> line following
+bool inposition = false;      //NUT in position under dispenser in line following mode?
 
-{
+//local for main() only
+bool irstatus1 = 0;
+bool irstatus2 = 0;
 
-  // This function will run the motors in both directions at a fixed speed
+//==================================functions====================================
 
-  // Turn on motor A
-
-  digitalWrite(in1, HIGH);
-  digitalWrite(in2, LOW);
-
-  // Set speed to 200 out of possible range 0~255
-
-  analogWrite(enA, 255);
-
-  // Turn on motor B
-
-  digitalWrite(in3, HIGH);
-  digitalWrite(in4, LOW);
-
-  // Set speed to 200 out of possible range 0~255
-
-  analogWrite(enB, 255);
-
-  delay(2000);
-
-  // Now change motor directions
-
-  digitalWrite(in1, LOW);
-  digitalWrite(in2, HIGH);
-  digitalWrite(in3, LOW);
-  digitalWrite(in4, HIGH);
-
-  delay(2000);
-
-  // Now turn off motors
-
-  digitalWrite(in1, LOW);
-  digitalWrite(in2, LOW);
-  digitalWrite(in3, LOW);
-  digitalWrite(in4, LOW);
-
+//set speed of all motors on a value between 0 and 255 (min. 100 recommended)
+void set_speed(int velocity){
+  analogWrite(enA, velocity);
+  analogWrite(enB, velocity);
 }
 
-void demoTwo()
-
-{
-
-  // This function will run the motors across the range of possible speeds
-  // Note that maximum speed is determined by the motor itself and the operating voltage
-
-  // Turn on motors
-
-  digitalWrite(in1, LOW);
-  digitalWrite(in2, HIGH);
-  digitalWrite(in3, LOW);
-  digitalWrite(in4, HIGH);
-
-  // Accelerate from zero to maximum speed
-
-  for (int i = 100; i < 256; i++)
-
-  {
-
-    analogWrite(enA, i);
-    analogWrite(enB, i);
-
-    delay(20);
-
+//stop the movement
+  void move_stop(){
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, LOW);
+    digitalWrite(in3, LOW);
+    digitalWrite(in4, LOW);
   }
 
-  // Decelerate from maximum speed to zero
-
-  for (int i = 255; i >= 100; --i)
-
-  {
-
-    analogWrite(enA, i);
-    analogWrite(enB, i);
-
-    delay(20);
-
+//drive forward
+  void move_for(){
+    digitalWrite(in1, HIGH);
+    digitalWrite(in2, LOW);
+    digitalWrite(in3, HIGH);
+    digitalWrite(in4, LOW);
   }
 
-  // Now turn off motors
+//drive backward
+  void move_back(){
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, HIGH);
+    digitalWrite(in3, LOW);
+    digitalWrite(in4, HIGH);
+  } 
 
-  digitalWrite(in1, LOW);
-  digitalWrite(in2, LOW);
-  digitalWrite(in3, LOW);
-  digitalWrite(in4, LOW);
-
-}*/
-const int steerSpeed = 100;
-
-int linePosition; //0: unknown, 1: left, 2: right
-bool followLine = true;
-int steering; //0: straight, 2: left, 1: right
-int drive;//0:off, 1: foward, 2: backward
-int outA, outB;
-
-bool foundLine;
-bool memFoundLine;
-
-unsigned long startTimeSearch;
-
-void movements()
-{
-  if (drive > 0) {
-    outA = 10;
-    outB = 10;
-    if (steering == 1) {
-      outB += steerSpeed;
-    } else if (steering == 2) {
-      outA += steerSpeed;
-    }
-  } else {
-    if (steering > 0) {
-      outA = steerSpeed;
-      outB = steerSpeed;
-    } else {
-      outA = 0;
-      outB = 0;
-    }
+//drive sharp to the right
+  void move_sright(){
+    digitalWrite(in1, HIGH);
+    digitalWrite(in2, LOW);
+    digitalWrite(in3, LOW);
+    digitalWrite(in4, HIGH);
   }
-  
 
-  switch (drive)
-  {
-    case 0:
-      switch (steering)
-      {
-        case 0:
-          digitalWrite(in1, LOW);
-          digitalWrite(in2, LOW);
-          digitalWrite(in3, LOW);
-          digitalWrite(in4, LOW);
-          break;
+//drive sharp to the left
+  void move_sleft(){
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, HIGH);
+    digitalWrite(in3, HIGH);
+    digitalWrite(in4, LOW);
+  } 
 
-        case 1:
-          digitalWrite(in1, LOW);
-          digitalWrite(in2, HIGH);
-          digitalWrite(in3, HIGH);
-          digitalWrite(in4, LOW);
-          break;
+//drive to the right
+  void move_right(){
+    digitalWrite(in1, HIGH);
+    digitalWrite(in2, LOW);
+    digitalWrite(in3, LOW);
+    digitalWrite(in4, LOW);
+  }
 
-         case 2:
-          digitalWrite(in1, HIGH);
-          digitalWrite(in2, LOW);
-          digitalWrite(in3, LOW);
-          digitalWrite(in4, HIGH);
-          break;
-          
+//drive to the left
+  void move_left(){
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, LOW);
+    digitalWrite(in3, HIGH);
+    digitalWrite(in4, LOW);
+  } 
+
+
+//communication with esp via I2C (triggerd by an I2C interrupt)
+void wireReceiveEvent(int bytes){
+  int value = Wire.read();
+
+  //line following inside station interrupt
+  if(operatingmode == 0){
+    
+    switch (value){    
+      case 69://are you in position?
+      if(inposition == true){
+        Wire.write("77"); //yes, in position
+        inposition = false;
+      }
+      else{
+        Wire.write("88"); //no, not in position
       }
       break;
 
-    case 1:
-      digitalWrite(in1, HIGH);
-      digitalWrite(in2, LOW);
-      digitalWrite(in3, HIGH);
-      digitalWrite(in4, LOW);
+      //switch to rc driving mode
+      case 100:
+      operatingmode = 1;
+      break;
+    }
+  }
+
+  //remote controlled driving interrupt
+  if(operatingmode == 1){
+    switch(value){
+      case 10: case 20: case 30: case 40: case 50: case 60:
+      move_stop();
+      break;
+  
+      case 11:
+      move_for();
+      break;
+  
+      case 21:
+      move_back();
+      break;
+  
+      case 31:
+      move_left();
+      break;
+  
+      case 41:
+      move_right();
+      break;
+  
+      case 51:
+      move_sleft();
+      break;
+  
+      case 61:
+      move_sright();
       break;
 
-    case 2:
-      digitalWrite(in1, LOW);
-      digitalWrite(in2, HIGH);
-      digitalWrite(in3, LOW);
-      digitalWrite(in4, HIGH);
+      //switch to line following mode
+      case 200:
+      operatingmode = 0;
       break;
+    }
+    Serial.println(value);
   }
-  if (outA > 255) {
-    outA = 255;
-  }
-  if (outB > 255) {
-    outB = 255;
-  }
-  analogWrite(enA, outA);
-  analogWrite(enB, outB);
 }
-
+  
+  
+//==========================================void loop================================
 void loop()
 {
-  foundLine = analogRead(TrigSensPin) < 100;
+  set_speed(100); //set speed at 100
+
+  //after here is a state machine with only two states: remote mode or line following mode
+
+  //line following inside station loop
+  if(operatingmode == 0){ 
+    irstatus1 = digitalRead(irsenspin1);
+    irstatus2 = digitalRead(irsenspin2);
+
+    //both see white = line is in between -> all good
+    if(irstatus1 == true && irstatus2 == true){
+      move_for();
+      //delay(50);
+    }
+
+    //ir1 sees black = line is left to the left
+    if(irstatus1 == false && irstatus2 == true){
+      move_right();
+      //delay(50);
+    }
+
+    //ir2 sees black = line is left to the right
+    if(irstatus1 == true && irstatus2 == false){
+      move_left();
+      //delay(50);
+    }
+
+    //both see black = a stop point is reached
+    if(irstatus1 == false && irstatus2 == false){
+      move_stop();
+      inposition = true;  //set flag to mark that position is reached
+      //delay(50);
+    }
 
 
-  if (followLine) {
-    if (linePosition == 0) { //unknown;
-      drive = 0;
-      if (foundLine) {
-        memFoundLine = foundLine;
-        if (steering == 0) {
-          steering = 1;
+
+    /*
+    //wenn Linie nicht gefunden "schnüffle" nach links und rechts
+    else{
+      if (currentMillis - previousMillis >= 1000) {
+        //save the last time you blinked the LED
+        previousMillis = currentMillis;
+        if(toggle == 1){
+          toggle = 0;
+          move_sleft();
         }
-      } else {
-        if (memFoundLine) {
-          linePosition = steering;
-          steering = 0;
-        } else {
-          if (steering == 0){
-            steering = 1;
-          }
-          if (startTimeSearch == 0) {
-            startTimeSearch = millis();
-          } else {
-            if (millis() - startTimeSearch > 2000) {
-              if (steering == 1) {
-                steering = 2;
-              } else if (steering == 2){
-                steering = 1;
-              }
-              startTimeSearch = 0;
-            }
-          }
+        else{
+          toggle = 1;
+          move_sright();
         }
       }
-    } else {
-      steering = 0;
-      drive = 1;
-    }
+      
+    }*/
+
+    
   }
 
-  movements();
-  //Serial.println(distanceSensor.measureDistanceCm()+1);
-  delay(50);
+  //remote controlled driving loop
+  if(operatingmode == 1){  
+    //empty. everything is done in interrupt
+  }
+
+  
+
+  /*
+  //debugging
   Serial.print("Steering: ");
   Serial.print(steering);
   Serial.print(", drive: ");
@@ -290,34 +283,5 @@ void loop()
   Serial.print(startTimeSearch);
   Serial.print(", millis: ");
   Serial.print(millis());
-  Serial.print(", outA: ");
-  Serial.print(outA);
-  Serial.print(", outB: ");
-  Serial.println(outB);
-
-  //val = analogRead(TrigSensPin);  // read the input pin
-  //Serial.println(val);          // debug value
-
-  /*
-    servoMotor.write(45);
-    delay(500);
-
-    servoMotor.write(135);
-    delay(500);
-
-
-    for(int i = 0; i<180; i+=5){
-      servoMotor.write(i);
-      delay(150);
-    }
-
-    delay(1000);
-
-    for(int i = 180; i>0; i-=5){
-      servoMotor.write(i);
-      delay(150);
-    }
   */
-
-
 }
