@@ -9,7 +9,9 @@ const char* ssid = "NUT";
 const char* password = "123456789";
 
 unsigned long previousMillis = 0;
-const long interval = 5000; 
+const long checkInterval = 500; 
+
+bool checkForVehiclePosition = false;
 
 AsyncWebServer server(80);
 
@@ -67,6 +69,14 @@ void parseCommand(String command, String value) {
     command_to_vehicle = 60;
   } else if (strcmp(command.c_str(), "velocity") == 0){
     command_to_vehicle = 1000;
+  } else if (strcmp(command.c_str(), "automatic") == 0){
+    if (value.toInt() > 0) {
+      command_to_vehicle = 199;
+    } else {
+      command_to_vehicle = 100;
+    }
+
+    checkForVehiclePosition = true;
   }
 
   if (command_to_vehicle > 0 and value.toInt() >=0 and value.toInt() <= 255) {
@@ -120,18 +130,20 @@ void setup() {
 }
 
 void loop() {
-  /*
-  unsigned long currentMillis = millis();
-  
-  if(currentMillis - previousMillis >= interval) {
-    // Check WiFi connection status
-    test = httpGETRequest("http://192.168.4.2/link2");
-    Serial.println(test);
-      
-      
-    // save the last HTTP GET Request
-    previousMillis = currentMillis;
 
-  }*/
+  if (checkForVehiclePosition and (millis() - previousMillis >= checkInterval)) {
+    sendOverWire(69);
+    
+    int result = Wire.read();
+    if (result == 88) {
+      Serial.println("Not reached the goal yet");
+    } else if (result == 77) {
+      Serial.println("Vehicle reached the goal");
+    } else {
+      Serial.print("Result: ");
+      Serial.println(result);
+    }
+    previousMillis = millis();
+  }
 
 }
