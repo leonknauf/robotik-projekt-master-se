@@ -46,6 +46,35 @@ void sendOverWire(int value) {
   Wire.beginTransmission(1); // transmit to device #1
   Wire.write(value);              // sends x 
   Wire.endTransmission();    // stop transmitting
+  Serial.print("Sending ");
+  Serial.print(value);
+  Serial.println(" to slave 1");
+}
+
+void parseCommand(String command, String value) {
+  int command_to_vehicle = 0;
+  if (strcmp(command.c_str(), "forward") == 0){
+    command_to_vehicle = 10;
+  } else if (strcmp(command.c_str(), "backward") == 0){
+    command_to_vehicle = 20;
+  } else if (strcmp(command.c_str(), "left") == 0){
+    command_to_vehicle = 30;
+  } else if (strcmp(command.c_str(), "right") == 0){
+    command_to_vehicle = 40;
+  } else if (strcmp(command.c_str(), "hard_left") == 0){
+    command_to_vehicle = 50;
+  } else if (strcmp(command.c_str(), "hard_right") == 0){
+    command_to_vehicle = 60;
+  } else if (strcmp(command.c_str(), "velocity") == 0){
+    command_to_vehicle = 1000;
+  }
+
+  if (command_to_vehicle > 0 and value.toInt() >=0 and value.toInt() <= 255) {
+    command_to_vehicle += value.toInt();
+    sendOverWire(command_to_vehicle);
+  } else{
+    Serial.println("Error parsing Command");
+  }
 }
 
 void setup() {
@@ -59,31 +88,26 @@ void setup() {
   Serial.print("AP IP address: ");
   Serial.println(IP);
 
-  server.on("/stop", HTTP_GET, [](AsyncWebServerRequest *request){
+  server.on("/control", HTTP_GET, [](AsyncWebServerRequest *request){
+    String command;
+    String value;
+    // GET input1 value on <ESP_IP>/control?command=<inputMessage1>&value=<inputMessage2>
+    if (request->hasParam("command") && request->hasParam("value")) {
+      command = request->getParam("command")->value();
+      value = request->getParam("value")->value();
+    }
+    else {
+      command = "No message sent";
+      value = "No message sent";
+    }
+    Serial.print("Command: ");
+    Serial.print(command);
+    Serial.print(", Value: ");
+    Serial.println(value);
     request->send_P(200, "text/plain", "OK");
-    Serial.println("stop");
-    sendOverWire(0);
+    parseCommand(command, value);
   });
-  server.on("/forward", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/plain", "OK");
-    Serial.println("forward");
-    sendOverWire(1);
-  });
-  server.on("/left", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/plain", "OK");
-    Serial.println("left");
-    sendOverWire(2);
-  });
-  server.on("/right", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/plain", "OK");
-    Serial.println("right");
-    sendOverWire(3);
-  });
-  server.on("/continue", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/plain", "OK");
-    Serial.println("continue");
-    sendOverWire(4);
-  });
+  
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send_P(200, "text/html", MAIN_page);
     Serial.println("root");

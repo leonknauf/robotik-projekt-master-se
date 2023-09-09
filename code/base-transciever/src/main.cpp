@@ -11,6 +11,9 @@ AsyncWebServer server(80);
 
 const char* ssid = "NUT";
 const char* password = "123456789";
+IPAddress local_IP(192, 168, 4, 200);
+IPAddress gateway(192, 168, 4, 1);
+IPAddress subnet(255, 255, 255, 0);
 
 unsigned long previousMillis = 0;
 const long interval = 5000; 
@@ -48,7 +51,10 @@ String httpGETRequest(const char* serverName) {
 void setup() {
   Serial.begin(9600);
   Serial.println();
-  
+
+  if (!WiFi.config(local_IP, gateway, subnet)) {
+    Serial.println("STA Failed to configure");
+  } 
  
   Serial.print("Connecting to ");
   Serial.println(ssid);
