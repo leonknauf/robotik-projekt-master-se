@@ -42,28 +42,12 @@ const int irsenspin1 = A0;
 const int irsenspin2 = A1;
 
 
-//=========================================setup================================
-
-void setup()
-{
-  //Set all the motor control pins to outputs
-  pinMode(enA, OUTPUT);
-  pinMode(enB, OUTPUT);
-  pinMode(in1, OUTPUT);
-  pinMode(in2, OUTPUT);
-  pinMode(in3, OUTPUT);
-  pinMode(in4, OUTPUT);
-
-  Serial.begin(9600); //start debug
-
-  Wire.begin(1);  //start I2C
-  Wire.onReceive(wireReceiveEvent); //interrupt through I2C on
-}
-
 //=================================global variables==============================
 
 bool operatingmode = true;    //true -> remote controlled, false -> line following
 bool inposition = false;      //NUT in position under dispenser in line following mode?
+
+int recieved_command;
 
 //local for main() only
 bool irstatus1 = 0;
@@ -136,32 +120,13 @@ void set_speed(int velocity){
 
 //communication with esp via I2C (triggerd by an I2C interrupt)
 void wireReceiveEvent(int bytes){
-  int value = Wire.read();
+  recieved_command = Wire.read();
 
-  //line following inside station interrupt
-  if(operatingmode == 0){
-    
-    switch (value){    
-      case 69://are you in position?
-      if(inposition == true){
-        Wire.write("77"); //yes, in position
-        inposition = false;
-      }
-      else{
-        Wire.write("88"); //no, not in position
-      }
-      break;
-
-      //switch to rc driving mode
-      case 100:
-      operatingmode = 1;
-      break;
-    }
-  }
-
+  Serial.print("i2C Recieved: ");
+  Serial.println(recieved_command);
   //remote controlled driving interrupt
   if(operatingmode == 1){
-    switch(value){
+    switch(recieved_command){
       case 10: case 20: case 30: case 40: case 50: case 60:
       move_stop();
       break;
@@ -195,11 +160,58 @@ void wireReceiveEvent(int bytes){
       operatingmode = 0;
       break;
     }
-    Serial.println(value);
   }
 }
   
-  
+void wireRequestEvent(){
+  Serial.print("i2C Request, ");
+  byte answer = 0;
+  //line following inside station interrupt
+  if(operatingmode == 0){
+    
+    switch (recieved_command){    
+      case 69://are you in position?
+        if(inposition == true){
+          answer = 77; //yes, in position
+          inposition = false;
+        }
+        else{
+          answer = 88; //no, not in position
+        }
+        break;
+
+      //switch to rc driving mode
+      case 100:
+        operatingmode = 1;
+        break;
+    }
+    
+  }
+  Serial.print("answering: ");
+  Serial.println(answer);
+  Wire.write(answer);
+  recieved_command = 0;
+}
+
+//=========================================setup================================
+
+void setup()
+{
+  //Set all the motor control pins to outputs
+  pinMode(enA, OUTPUT);
+  pinMode(enB, OUTPUT);
+  pinMode(in1, OUTPUT);
+  pinMode(in2, OUTPUT);
+  pinMode(in3, OUTPUT);
+  pinMode(in4, OUTPUT);
+
+  Serial.begin(9600); //start debug
+
+  Wire.begin(1);  //start I2C
+  Wire.onReceive(wireReceiveEvent); //interrupt through I2C on
+  Wire.onRequest(wireRequestEvent);
+}
+
 //==========================================void loop================================
 void loop()
 {

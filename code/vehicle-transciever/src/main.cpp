@@ -44,13 +44,19 @@ String httpGETRequest(const char* serverName) {
   return payload;
 }
 
-void sendOverWire(int value) {
+byte sendOverWire(int value) {
   Wire.beginTransmission(1); // transmit to device #1
   Wire.write(value);              // sends x 
   Wire.endTransmission();    // stop transmitting
   Serial.print("Sending ");
   Serial.print(value);
   Serial.println(" to slave 1");
+
+  Wire.requestFrom(1,1); //address 1, bytes 1
+  byte response = Wire.read();
+  Serial.print("Recieved response: ");
+  Serial.println(response);
+  return response;
 }
 
 void parseCommand(String command, String value) {
@@ -132,16 +138,13 @@ void setup() {
 void loop() {
 
   if (checkForVehiclePosition and (millis() - previousMillis >= checkInterval)) {
-    sendOverWire(69);
+    Serial.println("");
+    byte result = sendOverWire(69);
     
-    int result = Wire.read();
     if (result == 88) {
       Serial.println("Not reached the goal yet");
     } else if (result == 77) {
       Serial.println("Vehicle reached the goal");
-    } else {
-      Serial.print("Result: ");
-      Serial.println(result);
     }
     previousMillis = millis();
   }
