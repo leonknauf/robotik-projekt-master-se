@@ -10,7 +10,7 @@ ESP8266WiFiMulti WiFiMulti;
 
 AsyncWebServer server(80);
 
-const char* ssid = "NUT";
+const char* ssid = "NUTS";
 const char* password = "123456789";
 IPAddress local_IP(192, 168, 4, 200);
 IPAddress gateway(192, 168, 4, 1);
@@ -18,6 +18,7 @@ IPAddress subnet(255, 255, 255, 0);
 
 unsigned long previousMillis = 0;
 const long interval = 5000; 
+int numConfiguredValves = 1;
 
 String test;
 String link = "http://192.168.4.1/link1";
@@ -30,12 +31,18 @@ String link = "http://192.168.4.1/link1";
 #define VALVE_POS_CLOSED 0
 #define VALVE_POS_OPEN 180
 
-Servo valve1, valve2, valve3, valve4;
+#define VALVE_OPEN_TIME 500 //ms
+
+Servo valve1, valve2, valve3, valve4, currentValve;
+int currentValveNum;
+
+bool startAutomaticValveControl;
+bool automaticDone;
 
 const int TrigSensPin = A0;
 bool foundVehicle = false;
 
-bool automaticMode = true;
+bool enableAutomaticMode = true;
 int automaticState = 0;
 
 String httpGETRequest(const char* serverName) {
@@ -66,29 +73,57 @@ String httpGETRequest(const char* serverName) {
 }
 
 void controlValves(String valveNum, String state) {
-  Servo valve;
-  if (strcmp(valveNum.c_str(), "valve1") == 0){
-    valve = valve1;
-  } else if (strcmp(valveNum.c_str(), "valve2") == 0){
-    valve = valve2;
-  } else if (strcmp(valveNum.c_str(), "valve3") == 0){
-    valve = valve3;
-  } else if (strcmp(valveNum.c_str(), "valve4") == 0){
-    valve = valve4;
-  } else {
-    Serial.println("Error parsing Command (valveNum)");
-    return;
+  int iValveNum = valveNum.toInt();
+  int iState = state.toInt();
+
+  switch (iValveNum) {
+    case 1:
+      currentValve = valve1;
+      break;
+    
+    case 2:
+      currentValve = valve2;
+      break;
+    
+    case 3:
+      currentValve = valve3;
+      break;
+
+    case 4:
+      currentValve = valve4;
+      break;
+
+    default:
+      Serial.println("Error parsing Command (valveNum)");
+      return;
   }
-  
-  if (strcmp(state.c_str(), "open") == 0){
-    valve.write(VALVE_POS_OPEN);
-  } else if (strcmp(state.c_str(), "close") == 0){
-    valve.write(VALVE_POS_CLOSED);
-  } else {
-    Serial.println("Error parsing Command (state)");
-    return;
+  currentValveNum = iValveNum;
+
+  switch (iState) {
+    case 0: //Manual close
+      Serial.print("Manual valve control: close valve");
+      Serial.println(iValveNum);
+      currentValve.write(VALVE_POS_CLOSED);
+      break;
+
+    case 1: //Manual open
+      Serial.print("Manual valve control: open valve");
+      Serial.println(iValveNum);
+      currentValve.write(VALVE_POS_OPEN);
+      break;
+
+    case 2: //Automatic open and close
+      startAutomaticValveControl = true;
+      if (iValveNum >= numConfiguredValves) {
+        automaticDone = true;
+      }
+      break;
+
+    default:
+      Serial.println("Error parsing Command (state)");
+      return;
   }
-  
+
 }
 
 void setup() {
@@ -131,62 +166,78 @@ void setup() {
 
   server.begin();
 
-  valve1.attach(VALVE1_PIN, 900, 1500);
-  valve2.attach(VALVE2_PIN, 900, 1500);
-  valve3.attach(VALVE3_PIN, 900, 1500);
-  valve4.attach(VALVE4_PIN, 900, 1500);
-
-  valve1.write(VALVE_POS_CLOSED);
-  valve2.write(VALVE_POS_CLOSED);
-  valve3.write(VALVE_POS_CLOSED);
-  valve4.write(VALVE_POS_CLOSED);
-
+  if (numConfiguredValves >= 1) {
+    valve1.attach(VALVE1_PIN, 900, 1500);
+    valve1.write(VALVE_POS_CLOSED);
+  }
+  if (numConfiguredValves >= 2) {
+    valve2.attach(VALVE2_PIN, 900, 1500);
+    valve2.write(VALVE_POS_CLOSED);
+  }
+  if (numConfiguredValves >= 3) {
+    valve3.attach(VALVE3_PIN, 900, 1500);
+    valve3.write(VALVE_POS_CLOSED);
+  }
+  if (numConfiguredValves >= 4) {
+    valve4.attach(VALVE4_PIN, 900, 1500);
+    valve4.write(VALVE_POS_CLOSED);
+  }
 }
 
 void loop() {
-  String result;
+  String response;
   foundVehicle = analogRead(TrigSensPin) < 100;
   
-  if (automaticMode) {
+  if (enableAutomaticMode) {
     switch (automaticState) {
       case 0: //wait for vehicle to be in range
-        if (foundVehicle) {
+        startAutomaticValveControl = false;
+        automaticDone = false;
+
+        if (foundVehicle) { //tell vehicle to follow line
+          response = httpGETRequest("http://192.168.4.1/control?command=automatic&value=1");
+          Serial.print("Sending automatic=1 request, response: ");
+          Serial.println(response);
           automaticState = 10;
         }
         break;
 
-      case 10: //tell vehicle to follow line
-        result = httpGETRequest("http://192.168.4.1/control?command=automatic&value=1");
-        Serial.println(result);
-        automaticState = 20;
-        break;
-
-      case 20: //wait until vehicle leaves the sensor
-        if (!foundVehicle) {
-          automaticState = 0;
+      case 10: 
+        if (startAutomaticValveControl) { //Control the current valve
+          Serial.print("Automatic valve control: open valve");
+          Serial.println(currentValveNum);
+          currentValve.write(VALVE_POS_OPEN);
+          previousMillis = millis();
+          startAutomaticValveControl = false;
+          automaticState = 20;
         }
         break;
 
+      case 20:
+        if (millis() - previousMillis >= VALVE_OPEN_TIME) {
+          Serial.print("Automatic valve control: close valve");
+          Serial.println(currentValveNum);
+          currentValve.write(VALVE_POS_CLOSED);
+          if (automaticDone){
+            response = httpGETRequest("http://192.168.4.1/control?command=automatic&value=0");
+            Serial.print("Sending automatic=0 request, response: ");
+            Serial.println(response);
+            automaticState = 0;
+          } else {
+            response = httpGETRequest("http://192.168.4.1/control?command=continue&value=1");
+            Serial.print("Sending continue=1 request, response: ");
+            Serial.println(response);
+            automaticState = 10;
+          }
+        }
+        break;
+
+      default:
+        automaticState = 0;
+        break;
     } 
   } else {
     automaticState = 0;
   }
-  /*
-  unsigned long currentMillis = millis();
-  
-  if(currentMillis - previousMillis >= interval) {
-     // Check WiFi connection status
-    if ((WiFiMulti.run() == WL_CONNECTED)) {
-      test = httpGETRequest(link.c_str());
-      Serial.println(test);
-      
-      
-      // save the last HTTP GET Request
-      previousMillis = currentMillis;
-    }
-    else {
-      Serial.println("WiFi Disconnected");
-    }
-  }*/
 }
 

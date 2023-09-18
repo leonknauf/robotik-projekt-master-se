@@ -47,7 +47,7 @@ const int irsenspin2 = A1;
 bool operatingmode = true;    //true -> remote controlled, false -> line following
 bool inposition = false;      //NUT in position under dispenser in line following mode?
 
-int recieved_command;
+int i2c_response;
 
 //local for main() only
 bool irstatus1 = 0;
@@ -120,7 +120,8 @@ void set_speed(int velocity){
 
 //communication with esp via I2C (triggerd by an I2C interrupt)
 void wireReceiveEvent(int bytes){
-  recieved_command = Wire.read();
+  int recieved_command = Wire.read();
+  i2c_response = 1;
 
   Serial.print("i2C Recieved: ");
   Serial.println(recieved_command);
@@ -160,23 +161,15 @@ void wireReceiveEvent(int bytes){
       operatingmode = 0;
       break;
     }
-  }
-}
-  
-void wireRequestEvent(){
-  Serial.print("i2C Request, ");
-  byte answer = 0;
-  //line following inside station interrupt
-  if(operatingmode == 0){
-    
+  } else if(operatingmode == 0){
     switch (recieved_command){    
       case 69://are you in position?
         if(inposition == true){
-          answer = 77; //yes, in position
+          i2c_response = 77; //yes, in position
           inposition = false;
         }
         else{
-          answer = 88; //no, not in position
+          i2c_response = 88; //no, not in position
         }
         break;
 
@@ -185,12 +178,14 @@ void wireRequestEvent(){
         operatingmode = 1;
         break;
     }
-    
   }
-  Serial.print("answering: ");
-  Serial.println(answer);
-  Wire.write(answer);
-  recieved_command = 0;
+}
+  
+void wireRequestEvent(){
+  Serial.print("i2C Request, answering: ");
+  Serial.println(i2c_response);
+  Wire.write(i2c_response);
+  i2c_response = 1;
 }
 
 //=========================================setup================================
