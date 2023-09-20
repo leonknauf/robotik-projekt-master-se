@@ -44,8 +44,9 @@ const int irsenspin2 = A1;
 
 //=================================global variables==============================
 
-bool operatingmode = true;    //true -> remote controlled, false -> line following
-bool inposition = false;      //NUT in position under dispenser in line following mode?
+bool operatingmode = true;      //true -> remote controlled, false -> line following
+bool inposition = false;        //NUT in position under dispenser in line following mode?
+bool automatic_continue = true; //station finished filling, vehicle can start again
 
 int i2c_response;
 
@@ -198,6 +199,11 @@ void wireReceiveEvent(int bytes){
       case MODE_MANUEL:
         operatingmode = 1;
         break;
+
+      //station complete, continue
+      case AUTOMATIC_CONTINUE:
+        automatic_continue = true;
+        break;
     }
   }
 }
@@ -260,30 +266,19 @@ void loop()
 
     //both see black = a stop point is reached
     if(irstatus1 == false && irstatus2 == false){
-      move_stop();
-      inposition = true;  //set flag to mark that position is reached
+      if (automatic_continue) { //station finished, move forward
+        move_for();
+      } else { // stop at station
+        move_stop(); 
+        inposition = true;  //set flag to mark that position is reached
+      }
       //delay(50);
     }
 
-
-
-    /*
-    //wenn Linie nicht gefunden "schnüffle" nach links und rechts
-    else{
-      if (currentMillis - previousMillis >= 1000) {
-        //save the last time you blinked the LED
-        previousMillis = currentMillis;
-        if(toggle == 1){
-          toggle = 0;
-          move_sleft();
-        }
-        else{
-          toggle = 1;
-          move_sright();
-        }
-      }
-      
-    }*/
+    //vehicle left station, reset flag
+    if ((irstatus1 == true || irstatus2 == true) && automatic_continue) {
+      automatic_continue = false;
+    }
 
     
   }
@@ -293,23 +288,4 @@ void loop()
     //empty. everything is done in interrupt
   }
 
-  
-
-  /*
-  //debugging
-  Serial.print("Steering: ");
-  Serial.print(steering);
-  Serial.print(", drive: ");
-  Serial.print(drive);
-  Serial.print(", linePosition: ");
-  Serial.print(linePosition);
-  Serial.print(", foundLine: ");
-  Serial.print(foundLine);
-  Serial.print(", memFoundLine: ");
-  Serial.print(memFoundLine);
-  Serial.print(", startTimeSearch: ");
-  Serial.print(startTimeSearch);
-  Serial.print(", millis: ");
-  Serial.print(millis());
-  */
 }
