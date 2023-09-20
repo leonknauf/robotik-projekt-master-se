@@ -17,6 +17,24 @@ AsyncWebServer server(80);
 
 String test;
 
+enum i2cCommand{
+  UNDEFINDED,
+  RESPONSE_OK,
+  MOVE_STOP,
+  MOVE_FORWARD,
+  MOVE_BACKWARD,
+  MOVE_LEFT,
+  MOVE_RIGHT,
+  MOVE_HARD_LEFT,
+  MOVE_HARD_RIGHT,
+  MODE_AUTOMATIC,
+  MODE_MANUEL,
+  POSITION_CHECK,
+  POSITION_ARRIVED,
+  POSITION_NOT_ARRIVED,
+  AUTOMATIC_CONTINUE
+};
+
 String httpGETRequest(const char* serverName) {
   WiFiClient client;
   HTTPClient http;
@@ -60,35 +78,31 @@ byte sendOverWire(int value) {
 }
 
 void parseCommand(String command, String value) {
-  int command_to_vehicle = 0;
+  int command_to_vehicle = UNDEFINDED;
   if (value.toInt() < 0) {
     Serial.println("Error parsing Command (value)");
     return;
   }
 
   if (strcmp(command.c_str(), "forward") == 0){
-    command_to_vehicle = 10+value.toInt();
+    command_to_vehicle = (value.toInt() > 0) ? MOVE_FORWARD : MOVE_STOP;
   } else if (strcmp(command.c_str(), "backward") == 0){
-    command_to_vehicle = 20+value.toInt();
+    command_to_vehicle = (value.toInt() > 0) ? MOVE_BACKWARD : MOVE_STOP;
   } else if (strcmp(command.c_str(), "left") == 0){
-    command_to_vehicle = 30+value.toInt();
+    command_to_vehicle = (value.toInt() > 0) ? MOVE_LEFT : MOVE_STOP;
   } else if (strcmp(command.c_str(), "right") == 0){
-    command_to_vehicle = 40+value.toInt();
+    command_to_vehicle = (value.toInt() > 0) ? MOVE_RIGHT : MOVE_STOP;
   } else if (strcmp(command.c_str(), "hard_left") == 0){
-    command_to_vehicle = 50+value.toInt();
+    command_to_vehicle = (value.toInt() > 0) ? MOVE_HARD_LEFT : MOVE_STOP;
   } else if (strcmp(command.c_str(), "hard_right") == 0){
-    command_to_vehicle = 60+value.toInt();
+    command_to_vehicle = (value.toInt() > 0) ? MOVE_HARD_RIGHT : MOVE_STOP;
   } else if (strcmp(command.c_str(), "automatic") == 0){
-    if (value.toInt() > 0) {
-      command_to_vehicle = 200;
-    } else {
-      command_to_vehicle = 100;
-    }
+    command_to_vehicle = (value.toInt() > 0) ? MODE_AUTOMATIC : MODE_MANUEL;
 
     checkForVehiclePosition = true;
   } else if (strcmp(command.c_str(), "continue") == 0) {
     if (value.toInt() > 0) {
-      command_to_vehicle = 200; //TODO: ist der wert richtig?
+      command_to_vehicle = AUTOMATIC_CONTINUE;
     }
   } else {
     Serial.println("Error parsing Command (command)");
@@ -144,11 +158,11 @@ void loop() {
   if (checkForVehiclePosition and (millis() - previousMillis >= checkInterval)) {
     Serial.println("");
     Serial.print("Checking fort vehicle positon... ");
-    byte result = sendOverWire(69);
+    byte result = sendOverWire(POSITION_CHECK);
     
-    if (result == 88) {
+    if (result == POSITION_NOT_ARRIVED) {
       Serial.println("Not reached the goal yet");
-    } else if (result == 77) {
+    } else if (result == POSITION_ARRIVED) {
       Serial.println("Vehicle reached the goal");
       response = httpGETRequest("http://192.168.4.200/valve?valveNum=0&state=2");
       Serial.print("Sending valveNum=0 state=2 request, response: ");

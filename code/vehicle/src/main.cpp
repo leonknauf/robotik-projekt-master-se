@@ -53,6 +53,27 @@ int i2c_response;
 bool irstatus1 = 0;
 bool irstatus2 = 0;
 
+
+//=================================enumerations==================================
+enum i2cCommand{
+  UNDEFINDED,
+  RESPONSE_OK,
+  MOVE_STOP,
+  MOVE_FORWARD,
+  MOVE_BACKWARD,
+  MOVE_LEFT,
+  MOVE_RIGHT,
+  MOVE_HARD_LEFT,
+  MOVE_HARD_RIGHT,
+  MODE_AUTOMATIC,
+  MODE_MANUEL,
+  POSITION_CHECK,
+  POSITION_ARRIVED,
+  POSITION_NOT_ARRIVED,
+  AUTOMATIC_CONTINUE
+};
+
+
 //==================================functions====================================
 
 //set speed of all motors on a value between 0 and 255 (min. 100 recommended)
@@ -121,60 +142,60 @@ void set_speed(int velocity){
 //communication with esp via I2C (triggerd by an I2C interrupt)
 void wireReceiveEvent(int bytes){
   int recieved_command = Wire.read();
-  i2c_response = 1;
+  i2c_response = RESPONSE_OK;
 
   Serial.print("i2C Recieved: ");
   Serial.println(recieved_command);
   //remote controlled driving interrupt
   if(operatingmode == 1){
     switch(recieved_command){
-      case 10: case 20: case 30: case 40: case 50: case 60:
+      case MOVE_STOP:
       move_stop();
       break;
   
-      case 11:
+      case MOVE_FORWARD:
       move_for();
       break;
   
-      case 21:
+      case MOVE_BACKWARD:
       move_back();
       break;
   
-      case 31:
+      case MOVE_LEFT:
       move_left();
       break;
   
-      case 41:
+      case MOVE_RIGHT:
       move_right();
       break;
   
-      case 51:
+      case MOVE_HARD_LEFT:
       move_sleft();
       break;
   
-      case 61:
+      case MOVE_HARD_RIGHT:
       move_sright();
       break;
 
       //switch to line following mode
-      case 200:
+      case MODE_AUTOMATIC:
       operatingmode = 0;
       break;
     }
   } else if(operatingmode == 0){
     switch (recieved_command){    
-      case 69://are you in position?
+      case POSITION_CHECK://are you in position?
         if(inposition == true){
-          i2c_response = 77; //yes, in position
+          i2c_response = POSITION_ARRIVED; //yes, in position
           inposition = false;
         }
         else{
-          i2c_response = 88; //no, not in position
+          i2c_response = POSITION_NOT_ARRIVED; //no, not in position
         }
         break;
 
       //switch to rc driving mode
-      case 100:
+      case MODE_MANUEL:
         operatingmode = 1;
         break;
     }
@@ -185,7 +206,7 @@ void wireRequestEvent(){
   Serial.print("i2C Request, answering: ");
   Serial.println(i2c_response);
   Wire.write(i2c_response);
-  i2c_response = 1;
+  i2c_response = RESPONSE_OK;
 }
 
 //=========================================setup================================
