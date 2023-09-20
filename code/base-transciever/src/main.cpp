@@ -126,6 +126,38 @@ void controlValves(String valveNum, String state) {
 
 }
 
+String readWriteValue(String valueName, String value) {
+  if (strcmp(value.c_str(), "request") == 0) {
+    //Read value
+
+    if (strcmp(valueName.c_str(), "enableAutomaticMode") == 0)
+      return enableAutomaticMode ? "true" : "false";
+    else if (strcmp(valueName.c_str(), "automaticState") == 0)
+      return String(automaticState);
+    else if (strcmp(valueName.c_str(), "numConfiguredValves") == 0)
+      return String(numConfiguredValves);
+    else
+      return "Error";
+
+  } else {
+    //Write value
+
+    if (strcmp(valueName.c_str(), "enableAutomaticMode") == 0) {
+      if (strcmp(value.c_str(), "true") == 0)
+        enableAutomaticMode = true;
+      else if (strcmp(value.c_str(), "false") == 0 and automaticState == 0)
+        enableAutomaticMode = false;
+      return enableAutomaticMode ? "true" : "false";
+    } else if (strcmp(valueName.c_str(), "numConfiguredValves") == 0) {
+      if (value.toInt() > 0 and value.toInt() <= 4)
+        numConfiguredValves = value.toInt();
+      return String(numConfiguredValves);
+    } else
+      return "Error";
+  }
+}
+
+
 void setup() {
   Serial.begin(9600);
   Serial.println();
@@ -162,6 +194,31 @@ void setup() {
     Serial.println(state);
     request->send_P(200, "text/plain", "OK");
     controlValves(valveNum, state);
+  });
+
+  server.on("/value", HTTP_GET, [](AsyncWebServerRequest *request){
+    String valueName, value;
+    // GET input1 value on <ESP_IP>/value?valueName=<inputMessage1>&value=<inputMessage2>
+    if (request->hasParam("valueName")) {
+      valueName = request->getParam("valveNum")->value();
+    }
+    else {
+      valueName = "No message sent";
+    }
+    if (request->hasParam("value")) {
+      value = request->getParam("value")->value();
+    }
+    else {
+      value = "request";
+    }
+
+    Serial.print("valueName: ");
+    Serial.print(valueName);
+    Serial.print(", value: ");
+    Serial.println(value);
+    
+    String response = readWriteValue(valueName, value);
+    request->send_P(200, "text/plain", response.c_str());
   });
 
   server.begin();
