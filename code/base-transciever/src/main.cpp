@@ -36,8 +36,8 @@ String link = "http://192.168.4.1/link1";
 Servo valve1, valve2, valve3, valve4, currentValve;
 int currentValveNum;
 
-bool startAutomaticValveControl;
-bool automaticDone;
+bool AutomaticValveControl;
+bool AutomaticValveControl_mem;
 
 const int TrigSensPin = A0;
 bool foundVehicle = false;
@@ -76,7 +76,13 @@ void controlValves(String valveNum, String state) {
   int iValveNum = valveNum.toInt();
   int iState = state.toInt();
 
+  if (enableAutomaticMode and (iValveNum > 0 or iState != 2))
+    return;
+
   switch (iValveNum) {
+    case 0:
+      iValveNum = currentValveNum+1;
+
     case 1:
       currentValve = valve1;
       break;
@@ -113,10 +119,7 @@ void controlValves(String valveNum, String state) {
       break;
 
     case 2: //Automatic open and close
-      startAutomaticValveControl = true;
-      if (iValveNum >= numConfiguredValves) {
-        automaticDone = true;
-      }
+      AutomaticValveControl = true;
       break;
 
     default:
@@ -248,8 +251,8 @@ void loop() {
   if (enableAutomaticMode) {
     switch (automaticState) {
       case 0: //wait for vehicle to be in range
-        startAutomaticValveControl = false;
-        automaticDone = false;
+        AutomaticValveControl = false;
+        currentValveNum = 0;
 
         if (foundVehicle) { //tell vehicle to follow line
           response = httpGETRequest("http://192.168.4.1/control?command=automatic&value=1");
@@ -260,27 +263,22 @@ void loop() {
         break;
 
       case 10: 
-        if (startAutomaticValveControl) { //Control the current valve
-          Serial.print("Automatic valve control: open valve");
-          Serial.println(currentValveNum);
-          currentValve.write(VALVE_POS_OPEN);
-          previousMillis = millis();
-          startAutomaticValveControl = false;
+        if (AutomaticValveControl) {
+          Serial.println("Filling vehicle");
           automaticState = 20;
         }
         break;
 
       case 20:
-        if (millis() - previousMillis >= VALVE_OPEN_TIME) {
-          Serial.print("Automatic valve control: close valve");
-          Serial.println(currentValveNum);
-          currentValve.write(VALVE_POS_CLOSED);
-          if (automaticDone){
+        if (!AutomaticValveControl) {
+          if (currentValveNum >= numConfiguredValves) {
+            Serial.println("vehicle filled, done");
             response = httpGETRequest("http://192.168.4.1/control?command=automatic&value=0");
             Serial.print("Sending automatic=0 request, response: ");
             Serial.println(response);
             automaticState = 0;
           } else {
+            Serial.println("vehicle filled, continue");
             response = httpGETRequest("http://192.168.4.1/control?command=continue&value=1");
             Serial.print("Sending continue=1 request, response: ");
             Serial.println(response);
@@ -296,5 +294,23 @@ void loop() {
   } else {
     automaticState = 0;
   }
+
+  if (AutomaticValveControl) { //Control the current valve
+    if (!AutomaticValveControl_mem) {
+      Serial.print("Automatic valve control: open valve");
+      Serial.println(currentValveNum);
+      currentValve.write(VALVE_POS_OPEN);
+      previousMillis = millis();
+      AutomaticValveControl_mem = true;
+    } else {
+      if (millis() - previousMillis >= VALVE_OPEN_TIME) {
+          Serial.print("Automatic valve control: close valve");
+          Serial.println(currentValveNum);
+          currentValve.write(VALVE_POS_CLOSED);   
+          AutomaticValveControl = false;
+          AutomaticValveControl_mem = false; 
+      }
+    }
+  } 
 }
 
