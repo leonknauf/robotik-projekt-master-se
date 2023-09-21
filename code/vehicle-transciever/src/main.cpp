@@ -18,7 +18,7 @@ AsyncWebServer server(80);
 String test;
 
 enum i2cCommand{
-  UNDEFINDED,
+  UNDEFINED,
   RESPONSE_OK,
   MOVE_STOP,
   MOVE_FORWARD,
@@ -32,7 +32,11 @@ enum i2cCommand{
   POSITION_CHECK,
   POSITION_ARRIVED,
   POSITION_NOT_ARRIVED,
-  AUTOMATIC_CONTINUE
+  AUTOMATIC_CONTINUE,
+  VAR_IRSTATUS1,
+  VAR_IRSTATUS2,
+  VAR_OPMODE,
+  IGNORE_MESSAGE = 255
 };
 
 String httpGETRequest(const char* serverName) {
@@ -78,7 +82,7 @@ byte sendOverWire(int value) {
 }
 
 void parseCommand(String command, String value) {
-  int command_to_vehicle = UNDEFINDED;
+  int command_to_vehicle = UNDEFINED;
   if (value.toInt() < 0) {
     Serial.println("Error parsing Command (value)");
     return;
@@ -140,6 +144,69 @@ void setup() {
     Serial.println(value);
     request->send_P(200, "text/plain", "OK");
     parseCommand(command, value);
+  });
+
+   server.on("/value", HTTP_GET, [](AsyncWebServerRequest *request){
+    String valueName;
+    String value;
+    // GET input1 value on <ESP_IP>/control?command=<inputMessage1>&value=<inputMessage2>
+    if (request->hasParam("valueName") && request->hasParam("value")) {
+      valueName = request->getParam("valueName")->value();
+      value = request->getParam("value")->value();
+    }
+    else {
+      valueName = "No message sent";
+      value = "No message sent";
+      return;
+    }
+      String response = "OK";
+    if (value.equals("request")) {
+      if (valueName.equals("checkForVehiclePosition")) 
+         response = checkForVehiclePosition ? "true" : "false";
+
+    } else if (value.toInt() >= 0) {
+      if (valueName.equals("checkForVehiclePosition")) 
+         checkForVehiclePosition = value.toInt() > 0;
+      
+    } 
+
+    request->send_P(200, "text/plain", response.c_str());
+  });
+
+  server.on("/value_i2c", HTTP_GET, [](AsyncWebServerRequest *request){
+    String valueName;
+    String value;
+    // GET input1 value on <ESP_IP>/control?command=<inputMessage1>&value=<inputMessage2>
+    if (request->hasParam("valueName") && request->hasParam("value")) {
+      valueName = request->getParam("valueName")->value();
+      value = request->getParam("value")->value();
+    }
+    else {
+      valueName = "No message sent";
+      value = "No message sent";
+      return;
+    }
+    i2cCommand valueRequest = UNDEFINED;
+      if (valueName.equals("irstatus1"))
+        valueRequest = VAR_IRSTATUS1;
+      else if (valueName.equals("irstatus2"))
+        valueRequest = VAR_IRSTATUS2;
+      else if (valueName.equals("operatingmode"))
+        valueRequest = VAR_OPMODE;
+
+    if (valueRequest != UNDEFINED) {
+      if (value.equals("request")) {
+        byte response = sendOverWire(valueRequest);
+        sendOverWire(IGNORE_MESSAGE);
+        request->send_P(200, "text/plain", String(response).c_str());
+        return;
+      } else if (value.toInt() >= 0 && value.toInt() < 256) {
+        sendOverWire(valueRequest);
+        sendOverWire(value.toInt());
+      }
+    } 
+
+    request->send_P(200, "text/plain", "OK");
   });
   
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){

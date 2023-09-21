@@ -49,6 +49,7 @@ bool inposition = false;        //NUT in position under dispenser in line follow
 bool automatic_continue = true; //station finished filling, vehicle can start again
 
 int i2c_response;
+int variable_request;
 
 //local for main() only
 bool irstatus1 = 0;
@@ -57,7 +58,7 @@ bool irstatus2 = 0;
 
 //=================================enumerations==================================
 enum i2cCommand{
-  UNDEFINDED,
+  UNDEFINED,
   RESPONSE_OK,
   MOVE_STOP,
   MOVE_FORWARD,
@@ -71,7 +72,11 @@ enum i2cCommand{
   POSITION_CHECK,
   POSITION_ARRIVED,
   POSITION_NOT_ARRIVED,
-  AUTOMATIC_CONTINUE
+  AUTOMATIC_CONTINUE, 
+  VAR_IRSTATUS1,
+  VAR_IRSTATUS2,
+  VAR_OPMODE,
+  IGNORE_MESSAGE = 255
 };
 
 
@@ -143,6 +148,24 @@ void set_speed(int velocity){
 //communication with esp via I2C (triggerd by an I2C interrupt)
 void wireReceiveEvent(int bytes){
   int recieved_command = Wire.read();
+
+  if (variable_request != UNDEFINED) {
+    if (recieved_command != IGNORE_MESSAGE) {
+      switch (variable_request) {
+    
+        case VAR_OPMODE:
+        operatingmode = recieved_command;
+        i2c_response = operatingmode;
+        break;
+        
+      }
+    }
+    variable_request = UNDEFINED;
+    return;
+  }
+
+
+
   i2c_response = RESPONSE_OK;
 
   Serial.print("i2C Recieved: ");
@@ -182,6 +205,22 @@ void wireReceiveEvent(int bytes){
       case MODE_AUTOMATIC:
       operatingmode = 0;
       break;
+
+      case VAR_IRSTATUS1:
+      variable_request = VAR_IRSTATUS1;
+      i2c_response = irstatus1;
+      break;
+
+      case VAR_IRSTATUS2:
+      variable_request = VAR_IRSTATUS2;
+      i2c_response = irstatus2;
+      break;
+
+      case VAR_OPMODE:
+      variable_request = VAR_OPMODE;
+      i2c_response = operatingmode;
+      break;
+
     }
   } else if(operatingmode == 0){
     switch (recieved_command){    

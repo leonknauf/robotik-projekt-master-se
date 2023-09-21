@@ -16,6 +16,9 @@
                     } else if (button.dataset.target == 'variable_base' && isPressDown > 0) {
                         var value = document.getElementById(button.dataset.valuename).value;
                         url = 'http://192.168.4.200/value?valueName='+button.dataset.valuename+'&value='+value;
+                    } else if (button.dataset.target == 'variable_vehicle_i2c' && isPressDown > 0) {
+                        var value = document.getElementById(button.dataset.valuename).value;
+                        url = 'http://'+location.hostname+'/value_i2c?valueName='+button.dataset.valuename+'&value='+value;
                     } else if (button.dataset.target == 'internal_refresh' && isPressDown > 0) {
                         if (auto_refresh > 0) {
                             auto_refresh = 0;
@@ -53,6 +56,7 @@
                     window.setInterval(function(){
                         if (auto_refresh > 0) {
                             var variables_base = ["enableAutomaticMode", "automaticState", "numConfiguredValves"];
+                            var variables_vehicle_i2c = ["operatingmode", "irstatus1", "irstatus2"];
 
                             variables_base.forEach(function(variable){
                                 const Http = new XMLHttpRequest();
@@ -62,6 +66,19 @@
                                     }
                                 }
                                 var url = 'http://192.168.4.200/value?valueName='+variable+'&value=request';
+                                console.log('Sending request: ' + url);
+                                Http.open("GET", url);
+                                Http.send();
+                            });
+
+                            variables_vehicle_i2c.forEach(function(variable){
+                                const Http = new XMLHttpRequest();
+                                Http.onreadystatechange = function() {
+                                    if (Http.readyState == XMLHttpRequest.DONE) {
+                                        document.getElementById(variable).value = Http.responseText;
+                                    }
+                                }
+                                var url = 'http://'+location.hostname+'/value_i2c?valueName='+variable+'&value=request';
                                 console.log('Sending request: ' + url);
                                 Http.open("GET", url);
                                 Http.send();
@@ -114,5 +131,12 @@
     <h4>Vehicle Transciever</h4>
 
     <h4>Vehicle</h4>
+    <label for="operatingmode">operatingmode :</label>
+    <input type="text" id="operatingmode" class="deacOnRefresh">
+    <button data-target="variable_vehicle_i2c" data-valuename="operatingmode" class="deacOnRefresh">Set Value</button><br>
+    <label for="irstatus1">irstatus1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:</label>
+    <input type="text" id="irstatus1" disabled><br>
+    <label for="irstatus2">irstatus2&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:</label>
+    <input type="text" id="irstatus2" disabled><br>
 </BODY>
 </HTML>
