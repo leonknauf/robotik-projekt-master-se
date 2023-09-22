@@ -6,7 +6,7 @@ const char MAIN_page[] PROGMEM = R"=====(
 			<TITLE>NUT Control</TITLE>
             <script>
 
-                var auto_refresh = 1;
+                var auto_refresh = 0;
 
                 function buttonEvent(button, isPressDown) {
                     const Http = new XMLHttpRequest();
@@ -19,6 +19,9 @@ const char MAIN_page[] PROGMEM = R"=====(
                     } else if (button.dataset.target == 'variable_base' && isPressDown > 0) {
                         var value = document.getElementById(button.dataset.valuename).value;
                         url = 'http://192.168.4.200/value?valueName='+button.dataset.valuename+'&value='+value;
+                    } else if (button.dataset.target == 'variable_vehicle_i2c' && isPressDown > 0) {
+                        var value = document.getElementById(button.dataset.valuename).value;
+                        url = 'http://'+location.hostname+'/value_i2c?valueName='+button.dataset.valuename+'&value='+value;
                     } else if (button.dataset.target == 'internal_refresh' && isPressDown > 0) {
                         if (auto_refresh > 0) {
                             auto_refresh = 0;
@@ -55,7 +58,8 @@ const char MAIN_page[] PROGMEM = R"=====(
 
                     window.setInterval(function(){
                         if (auto_refresh > 0) {
-                            var variables_base = ["enableAutomaticMode", "automaticState", "numConfiguredValves"];
+                            var variables_base = ["enableAutomaticMode", "automaticState", "numConfiguredValves", "foundVehicle"];
+                            var variables_vehicle_i2c = [];//"operatingmode", "irstatus1", "irstatus2"];
 
                             variables_base.forEach(function(variable){
                                 const Http = new XMLHttpRequest();
@@ -67,11 +71,30 @@ const char MAIN_page[] PROGMEM = R"=====(
                                 var url = 'http://192.168.4.200/value?valueName='+variable+'&value=request';
                                 console.log('Sending request: ' + url);
                                 Http.open("GET", url);
+                                Http.setRequestHeader('Access-Control-Allow-Headers', '*');
+                                Http.setRequestHeader('Access-Control-Allow-Origin', '*');
+                                Http.setRequestHeader("Access-Control-Allow-Methods", "GET, POST, PUT");
+                                Http.send();
+                            });
+
+                            variables_vehicle_i2c.forEach(function(variable){
+                                const Http = new XMLHttpRequest();
+                                Http.onreadystatechange = function() {
+                                    if (Http.readyState == XMLHttpRequest.DONE) {
+                                        document.getElementById(variable).value = Http.responseText;
+                                    }
+                                }
+                                var url = 'http://'+location.hostname+'/value_i2c?valueName='+variable+'&value=request';
+                                console.log('Sending request: ' + url);
+                                Http.open("GET", url);
+                                Http.setRequestHeader('Access-Control-Allow-Headers', '*');
+                                Http.setRequestHeader('Access-Control-Allow-Origin', '*');
+                                Http.setRequestHeader("Access-Control-Allow-Methods", "GET, POST, PUT");
                                 Http.send();
                             });
                         }
                         
-                    }, 500);
+                    }, 1000);
                 });
                 
             </script>
@@ -113,10 +136,19 @@ const char MAIN_page[] PROGMEM = R"=====(
     <label for="numConfiguredValves">numConfiguredValves :</label>
     <input type="text" id="numConfiguredValves" class="deacOnRefresh">
     <button data-target="variable_base" data-valuename="numConfiguredValves" class="deacOnRefresh">Set Value</button><br>
+    <label for="foundVehicle">foundVehicle :</label>
+    <input type="text" id="foundVehicle" disabled><br>
 
     <h4>Vehicle Transciever</h4>
 
     <h4>Vehicle</h4>
+    <label for="operatingmode">operatingmode :</label>
+    <input type="text" id="operatingmode" disabled>
+    <label for="irstatus1">irstatus1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:</label>
+    <input type="text" id="irstatus1" disabled><br>
+    <label for="irstatus2">irstatus2&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:</label>
+    <input type="text" id="irstatus2" disabled><br>
+    <button data-target="vehicle" data-command="radio">Toggle Radio</button>
 </BODY>
 </HTML>
 )=====";

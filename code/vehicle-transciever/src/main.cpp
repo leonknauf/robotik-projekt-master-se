@@ -12,6 +12,7 @@ unsigned long previousMillis = 0;
 const long checkInterval = 500; 
 
 bool checkForVehiclePosition = false;
+bool radiostate = false;
 
 AsyncWebServer server(80);
 
@@ -36,7 +37,9 @@ enum i2cCommand{
   VAR_IRSTATUS1,
   VAR_IRSTATUS2,
   VAR_OPMODE,
-  IGNORE_MESSAGE = 255
+  RADIO_ON,
+  RADIO_OFF,
+  IGNORE_MESSAGE = 254
 };
 
 String httpGETRequest(const char* serverName) {
@@ -75,7 +78,7 @@ byte sendOverWire(int value) {
   Serial.println(" to slave 1");
 
   Wire.requestFrom(1,1); //address 1, bytes 1
-  byte response = Wire.read();
+  int response = Wire.read();
   Serial.print("Recieved response: ");
   Serial.println(response);
   return response;
@@ -102,11 +105,20 @@ void parseCommand(String command, String value) {
     command_to_vehicle = (value.toInt() > 0) ? MOVE_HARD_RIGHT : MOVE_STOP;
   } else if (strcmp(command.c_str(), "automatic") == 0){
     command_to_vehicle = (value.toInt() > 0) ? MODE_AUTOMATIC : MODE_MANUEL;
+    checkForVehiclePosition = value.toInt() > 0;
+  } else if (strcmp(command.c_str(), "radio") == 0){
+    if (value.toInt() > 0) {
+      radiostate = !radiostate;
+      command_to_vehicle = radiostate ? RADIO_ON : RADIO_OFF;
+    } else {
+      return;
+    }
+      
 
-    checkForVehiclePosition = true;
   } else if (strcmp(command.c_str(), "continue") == 0) {
     if (value.toInt() > 0) {
       command_to_vehicle = AUTOMATIC_CONTINUE;
+      checkForVehiclePosition = true;
     }
   } else {
     Serial.println("Error parsing Command (command)");
@@ -186,23 +198,20 @@ void setup() {
       value = "No message sent";
       return;
     }
-    i2cCommand valueRequest = UNDEFINED;
-      if (valueName.equals("irstatus1"))
-        valueRequest = VAR_IRSTATUS1;
-      else if (valueName.equals("irstatus2"))
-        valueRequest = VAR_IRSTATUS2;
-      else if (valueName.equals("operatingmode"))
-        valueRequest = VAR_OPMODE;
+    
+    int valueRequest = UNDEFINED;
+    if (valueName.equals("irstatus1"))
+       valueRequest = VAR_IRSTATUS1;
+     else if (valueName.equals("irstatus2"))
+       valueRequest = VAR_IRSTATUS2;
+     else if (valueName.equals("operatingmode"))
+       valueRequest = VAR_OPMODE;
 
     if (valueRequest != UNDEFINED) {
       if (value.equals("request")) {
         byte response = sendOverWire(valueRequest);
-        sendOverWire(IGNORE_MESSAGE);
         request->send_P(200, "text/plain", String(response).c_str());
         return;
-      } else if (value.toInt() >= 0 && value.toInt() < 256) {
-        sendOverWire(valueRequest);
-        sendOverWire(value.toInt());
       }
     } 
 
@@ -214,6 +223,7 @@ void setup() {
     Serial.println("root");
   });
 
+  
   // Start server
   server.begin();
 
@@ -234,6 +244,7 @@ void loop() {
       response = httpGETRequest("http://192.168.4.200/valve?valveNum=0&state=2");
       Serial.print("Sending valveNum=0 state=2 request, response: ");
       Serial.println(response);
+      checkForVehiclePosition = false;
     } else {
       Serial.println("Unknown Response");
     }

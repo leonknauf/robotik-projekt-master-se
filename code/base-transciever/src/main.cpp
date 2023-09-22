@@ -23,15 +23,15 @@ int numConfiguredValves = 1;
 String test;
 String link = "http://192.168.4.1/link1";
 
-#define VALVE1_PIN 14
-#define VALVE2_PIN 12
-#define VALVE3_PIN 13
-#define VALVE4_PIN 15
+#define VALVE1_PIN 15
+#define VALVE2_PIN 13
+#define VALVE3_PIN 12
+#define VALVE4_PIN 14
 
 #define VALVE_POS_CLOSED 0
 #define VALVE_POS_OPEN 180
 
-#define VALVE_OPEN_TIME 500 //ms
+#define VALVE_OPEN_TIME 100 //ms
 
 Servo valve1, valve2, valve3, valve4, currentValve;
 int currentValveNum;
@@ -42,7 +42,7 @@ bool AutomaticValveControl_mem;
 const int TrigSensPin = A0;
 bool foundVehicle = false;
 
-bool enableAutomaticMode = true;
+bool enableAutomaticMode;
 int automaticState = 0;
 
 String httpGETRequest(const char* serverName) {
@@ -139,6 +139,8 @@ String readWriteValue(String valueName, String value) {
       return String(automaticState);
     else if (strcmp(valueName.c_str(), "numConfiguredValves") == 0)
       return String(numConfiguredValves);
+    else if (strcmp(valueName.c_str(), "foundVehicle") == 0)
+      return foundVehicle ? "true" : "false";
     else
       return "Error";
 
@@ -203,7 +205,7 @@ void setup() {
     String valueName, value;
     // GET input1 value on <ESP_IP>/value?valueName=<inputMessage1>&value=<inputMessage2>
     if (request->hasParam("valueName")) {
-      valueName = request->getParam("valveNum")->value();
+      valueName = request->getParam("valueName")->value();
     }
     else {
       valueName = "No message sent";
@@ -221,27 +223,27 @@ void setup() {
     Serial.println(value);
     
     String response = readWriteValue(valueName, value);
-    request->send_P(200, "text/plain", response.c_str());
+    AsyncWebServerResponse *httpresponse = request->beginResponse(200, "text/plain", response.c_str());
+    //Serial.print("response: ");
+    //Serial.println(response);
+    httpresponse->addHeader("Access-Control-Allow-Headers", "*");
+    httpresponse->addHeader("Access-Control-Allow-Origin", "*");
+    httpresponse->addHeader("Access-Control-Allow-Methods", "GET, POST, PUT");
+    request->send(httpresponse);
   });
 
   server.begin();
 
-  if (numConfiguredValves >= 1) {
-    valve1.attach(VALVE1_PIN, 900, 1500);
-    valve1.write(VALVE_POS_CLOSED);
-  }
-  if (numConfiguredValves >= 2) {
-    valve2.attach(VALVE2_PIN, 900, 1500);
-    valve2.write(VALVE_POS_CLOSED);
-  }
-  if (numConfiguredValves >= 3) {
-    valve3.attach(VALVE3_PIN, 900, 1500);
-    valve3.write(VALVE_POS_CLOSED);
-  }
-  if (numConfiguredValves >= 4) {
-    valve4.attach(VALVE4_PIN, 900, 1500);
-    valve4.write(VALVE_POS_CLOSED);
-  }
+  valve1.attach(VALVE1_PIN, 900, 1500);
+  valve1.write(VALVE_POS_CLOSED);
+  valve2.attach(VALVE2_PIN, 900, 1500);
+  valve2.write(VALVE_POS_CLOSED);
+  valve3.attach(VALVE3_PIN, 900, 1500);
+  valve3.write(VALVE_POS_CLOSED);
+  valve4.attach(VALVE4_PIN, 900, 1500);
+  valve4.write(VALVE_POS_CLOSED);
+
+  Serial.println("Setup done");
 }
 
 void loop() {

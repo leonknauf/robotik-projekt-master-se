@@ -49,7 +49,6 @@ bool inposition = false;        //NUT in position under dispenser in line follow
 bool automatic_continue = true; //station finished filling, vehicle can start again
 
 int i2c_response;
-int variable_request;
 
 //local for main() only
 bool irstatus1 = 0;
@@ -76,7 +75,8 @@ enum i2cCommand{
   VAR_IRSTATUS1,
   VAR_IRSTATUS2,
   VAR_OPMODE,
-  IGNORE_MESSAGE = 255
+  RADIO_ON,
+  RADIO_OFF
 };
 
 
@@ -148,28 +148,27 @@ void set_speed(int velocity){
 //communication with esp via I2C (triggerd by an I2C interrupt)
 void wireReceiveEvent(int bytes){
   int recieved_command = Wire.read();
+  i2c_response = RESPONSE_OK; 
 
-  if (variable_request != UNDEFINED) {
-    if (recieved_command != IGNORE_MESSAGE) {
-      switch (variable_request) {
-    
-        case VAR_OPMODE:
-        operatingmode = recieved_command;
-        i2c_response = operatingmode;
-        break;
-        
-      }
-    }
-    variable_request = UNDEFINED;
-    return;
-  }
-
-
-
-  i2c_response = RESPONSE_OK;
 
   Serial.print("i2C Recieved: ");
   Serial.println(recieved_command);
+
+  if(recieved_command == VAR_IRSTATUS1){
+     i2c_response = irstatus1;
+  } else if(recieved_command == VAR_IRSTATUS2){
+     i2c_response = irstatus2;
+  } else if(recieved_command == VAR_OPMODE){
+     i2c_response = operatingmode;
+  } else if(recieved_command == RADIO_ON) {
+    //Turn on Radio
+  } else if(recieved_command == RADIO_OFF) {
+    //Turn off Radio
+  }
+  
+
+ 
+
   //remote controlled driving interrupt
   if(operatingmode == 1){
     switch(recieved_command){
@@ -204,21 +203,6 @@ void wireReceiveEvent(int bytes){
       //switch to line following mode
       case MODE_AUTOMATIC:
       operatingmode = 0;
-      break;
-
-      case VAR_IRSTATUS1:
-      variable_request = VAR_IRSTATUS1;
-      i2c_response = irstatus1;
-      break;
-
-      case VAR_IRSTATUS2:
-      variable_request = VAR_IRSTATUS2;
-      i2c_response = irstatus2;
-      break;
-
-      case VAR_OPMODE:
-      variable_request = VAR_OPMODE;
-      i2c_response = operatingmode;
       break;
 
     }

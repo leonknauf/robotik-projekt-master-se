@@ -3,7 +3,7 @@
 			<TITLE>NUT Control</TITLE>
             <script>
 
-                var auto_refresh = 1;
+                var auto_refresh = 0;
 
                 function buttonEvent(button, isPressDown) {
                     const Http = new XMLHttpRequest();
@@ -55,8 +55,8 @@
 
                     window.setInterval(function(){
                         if (auto_refresh > 0) {
-                            var variables_base = ["enableAutomaticMode", "automaticState", "numConfiguredValves"];
-                            var variables_vehicle_i2c = ["operatingmode", "irstatus1", "irstatus2"];
+                            var variables_base = ["enableAutomaticMode", "automaticState", "numConfiguredValves", "foundVehicle"];
+                            var variables_vehicle_i2c = [];//"operatingmode", "irstatus1", "irstatus2"];
 
                             variables_base.forEach(function(variable){
                                 const Http = new XMLHttpRequest();
@@ -68,6 +68,9 @@
                                 var url = 'http://192.168.4.200/value?valueName='+variable+'&value=request';
                                 console.log('Sending request: ' + url);
                                 Http.open("GET", url);
+                                Http.setRequestHeader('Access-Control-Allow-Headers', '*');
+                                Http.setRequestHeader('Access-Control-Allow-Origin', '*');
+                                Http.setRequestHeader("Access-Control-Allow-Methods", "GET, POST, PUT");
                                 Http.send();
                             });
 
@@ -81,11 +84,14 @@
                                 var url = 'http://'+location.hostname+'/value_i2c?valueName='+variable+'&value=request';
                                 console.log('Sending request: ' + url);
                                 Http.open("GET", url);
+                                Http.setRequestHeader('Access-Control-Allow-Headers', '*');
+                                Http.setRequestHeader('Access-Control-Allow-Origin', '*');
+                                Http.setRequestHeader("Access-Control-Allow-Methods", "GET, POST, PUT");
                                 Http.send();
                             });
                         }
                         
-                    }, 500);
+                    }, 1000);
                 });
                 
             </script>
@@ -127,16 +133,18 @@
     <label for="numConfiguredValves">numConfiguredValves :</label>
     <input type="text" id="numConfiguredValves" class="deacOnRefresh">
     <button data-target="variable_base" data-valuename="numConfiguredValves" class="deacOnRefresh">Set Value</button><br>
+    <label for="foundVehicle">foundVehicle :</label>
+    <input type="text" id="foundVehicle" disabled><br>
 
     <h4>Vehicle Transciever</h4>
 
     <h4>Vehicle</h4>
     <label for="operatingmode">operatingmode :</label>
-    <input type="text" id="operatingmode" class="deacOnRefresh">
-    <button data-target="variable_vehicle_i2c" data-valuename="operatingmode" class="deacOnRefresh">Set Value</button><br>
+    <input type="text" id="operatingmode" disabled>
     <label for="irstatus1">irstatus1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:</label>
     <input type="text" id="irstatus1" disabled><br>
     <label for="irstatus2">irstatus2&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:</label>
     <input type="text" id="irstatus2" disabled><br>
+    <button data-target="vehicle" data-command="radio">Toggle Radio</button>
 </BODY>
 </HTML>
