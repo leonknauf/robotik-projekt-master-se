@@ -103,6 +103,8 @@ void parseCommand(String command, String value) {
     command_to_vehicle = (value.toInt() > 0) ? MOVE_HARD_LEFT : MOVE_STOP;
   } else if (strcmp(command.c_str(), "hard_right") == 0){
     command_to_vehicle = (value.toInt() > 0) ? MOVE_HARD_RIGHT : MOVE_STOP;
+  } else if (strcmp(command.c_str(), "stop") == 0){
+    command_to_vehicle = MOVE_STOP;
   } else if (strcmp(command.c_str(), "automatic") == 0){
     command_to_vehicle = (value.toInt() > 0) ? MODE_AUTOMATIC : MODE_MANUEL;
     checkForVehiclePosition = value.toInt() > 0;

@@ -17,8 +17,9 @@ IPAddress gateway(192, 168, 4, 1);
 IPAddress subnet(255, 255, 255, 0);
 
 unsigned long previousMillis = 0;
+unsigned long readAnalogMillis = 0;
 const long interval = 5000; 
-int numConfiguredValves = 1;
+int numConfiguredValves = 4;
 
 String test;
 String link = "http://192.168.4.1/link1";
@@ -32,6 +33,7 @@ String link = "http://192.168.4.1/link1";
 #define VALVE_POS_OPEN 180
 
 #define VALVE_OPEN_TIME 100 //ms
+#define READ_ANALOG_INTERVAL 100
 
 Servo valve1, valve2, valve3, valve4, currentValve;
 int currentValveNum;
@@ -139,9 +141,11 @@ String readWriteValue(String valueName, String value) {
       return String(automaticState);
     else if (strcmp(valueName.c_str(), "numConfiguredValves") == 0)
       return String(numConfiguredValves);
-    else if (strcmp(valueName.c_str(), "foundVehicle") == 0)
+    else if (strcmp(valueName.c_str(), "foundVehicle") == 0) {
+      Serial.print("foundVehicle");
+      Serial.println(foundVehicle);
       return foundVehicle ? "true" : "false";
-    else
+    } else
       return "Error";
 
   } else {
@@ -248,7 +252,11 @@ void setup() {
 
 void loop() {
   String response;
-  foundVehicle = analogRead(TrigSensPin) < 100;
+  if (millis() - readAnalogMillis >= READ_ANALOG_INTERVAL) {
+    foundVehicle = analogRead(TrigSensPin) > 600;
+    readAnalogMillis = millis();
+  }
+  
   
   if (enableAutomaticMode) {
     switch (automaticState) {

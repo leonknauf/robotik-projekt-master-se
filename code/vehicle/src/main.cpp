@@ -1,13 +1,19 @@
 /*
  *Filename: Code Arduino N.U.T. 
  *Author: Jonas Siebel
- *Date: 09.09.2023
- *Version: 1.0
+ *Date:22.09.2023
+ *Version: 1.1
+ *
+ *Password for NUTS-WIFI: 
+ *123456789
+ *
+ *Web-Adress for remote controll:
+ *192.168.4.1
 */
 
 
 /*
-Unschön:
+UnschÃ¶n:
 1) Es gibt globale variablen
 2) Die Funktion die bei einem I2C INterrupt aufgerufen wird ist zu lang
    Vielleicht mit Markern arbeiten und einen Teil davon ins Hauptprogramm verschieben?
@@ -38,8 +44,11 @@ const int echoPin = 12;
 UltraSonicDistanceSensor distanceSensor(trigPin, echoPin);
 
 //pins IR-Sensors
-const int irsenspin1 = A0;
-const int irsenspin2 = A1;
+const int irsenspin1 = A1;
+const int irsenspin2 = A0;
+
+//pins Radio
+const int radiopin = 11;
 
 
 //=================================global variables==============================
@@ -54,8 +63,13 @@ int i2c_response;
 bool irstatus1 = 0;
 bool irstatus2 = 0;
 
+//speeds for driving curves and driving forward*
+int curvespeed = 150;
+int forwardspeed = 100;
+//*they have to be different, because driving a curve requires more power aka speed
 
-//=================================enumerations==================================
+
+//===============================enumerations for I2C================================
 enum i2cCommand{
   UNDEFINED,
   RESPONSE_OK,
@@ -66,15 +80,15 @@ enum i2cCommand{
   MOVE_RIGHT,
   MOVE_HARD_LEFT,
   MOVE_HARD_RIGHT,
-  MODE_AUTOMATIC,
-  MODE_MANUEL,
-  POSITION_CHECK,
-  POSITION_ARRIVED,
-  POSITION_NOT_ARRIVED,
-  AUTOMATIC_CONTINUE, 
-  VAR_IRSTATUS1,
-  VAR_IRSTATUS2,
-  VAR_OPMODE,
+  MODE_AUTOMATIC, //activate line following mode
+  MODE_MANUEL,    //activate remote controlled driving mode
+  POSITION_CHECK,   //in position?
+  POSITION_ARRIVED, //yes, in position
+  POSITION_NOT_ARRIVED, //no, not in position
+  AUTOMATIC_CONTINUE, //switch back in remote controlled mode
+  VAR_IRSTATUS1,  //status ir sensor 1
+  VAR_IRSTATUS2,  //status ir sensor 2
+  VAR_OPMODE, //status operation mode
   RADIO_ON,
   RADIO_OFF
 };
@@ -98,6 +112,7 @@ void set_speed(int velocity){
 
 //drive forward
   void move_for(){
+    set_speed(forwardspeed); 
     digitalWrite(in1, HIGH);
     digitalWrite(in2, LOW);
     digitalWrite(in3, HIGH);
@@ -106,6 +121,7 @@ void set_speed(int velocity){
 
 //drive backward
   void move_back(){
+    set_speed(forwardspeed); 
     digitalWrite(in1, LOW);
     digitalWrite(in2, HIGH);
     digitalWrite(in3, LOW);
@@ -114,6 +130,7 @@ void set_speed(int velocity){
 
 //drive sharp to the right
   void move_sright(){
+    set_speed(curvespeed); 
     digitalWrite(in1, HIGH);
     digitalWrite(in2, LOW);
     digitalWrite(in3, LOW);
@@ -122,6 +139,7 @@ void set_speed(int velocity){
 
 //drive sharp to the left
   void move_sleft(){
+    set_speed(curvespeed); 
     digitalWrite(in1, LOW);
     digitalWrite(in2, HIGH);
     digitalWrite(in3, HIGH);
@@ -130,6 +148,7 @@ void set_speed(int velocity){
 
 //drive to the right
   void move_right(){
+    set_speed(curvespeed); 
     digitalWrite(in1, HIGH);
     digitalWrite(in2, LOW);
     digitalWrite(in3, LOW);
@@ -138,38 +157,59 @@ void set_speed(int velocity){
 
 //drive to the left
   void move_left(){
+    set_speed(curvespeed); 
     digitalWrite(in1, LOW);
     digitalWrite(in2, LOW);
     digitalWrite(in3, HIGH);
     digitalWrite(in4, LOW);
   } 
 
+//=========
+
+//switch radio on/off
+  void radio_on(){
+    digitalWrite(radiopin, HIGH);
+  }
+
+  void radio_off(){
+    digitalWrite(radiopin, LOW);
+  }
+
+//=======
 
 //communication with esp via I2C (triggerd by an I2C interrupt)
 void wireReceiveEvent(int bytes){
-  int recieved_command = Wire.read();
+  int recieved_command = Wire.read();   //store recieved command
   i2c_response = RESPONSE_OK; 
-
 
   Serial.print("i2C Recieved: ");
   Serial.println(recieved_command);
 
-  if(recieved_command == VAR_IRSTATUS1){
-     i2c_response = irstatus1;
-  } else if(recieved_command == VAR_IRSTATUS2){
-     i2c_response = irstatus2;
-  } else if(recieved_command == VAR_OPMODE){
-     i2c_response = operatingmode;
-  } else if(recieved_command == RADIO_ON) {
-    //Turn on Radio
-  } else if(recieved_command == RADIO_OFF) {
-    //Turn off Radio
+  //interrupts which always work
+  switch(recieved_command){
+    case VAR_IRSTATUS1:
+    i2c_response = irstatus1;
+    break;
+    
+    case VAR_IRSTATUS2:
+    i2c_response = irstatus2;
+    break;
+    
+    case VAR_OPMODE:
+    i2c_response = operatingmode;
+    break;
+    
+    case RADIO_ON:
+    radio_on();
+    break;
+    
+    case RADIO_OFF:
+    radio_off();
+    break;
   }
-  
+   
 
- 
-
-  //remote controlled driving interrupt
+  //remote controlled driving interrupts
   if(operatingmode == 1){
     switch(recieved_command){
       case MOVE_STOP:
@@ -204,9 +244,11 @@ void wireReceiveEvent(int bytes){
       case MODE_AUTOMATIC:
       operatingmode = 0;
       break;
-
     }
-  } else if(operatingmode == 0){
+  } 
+  
+  //line following mode interrupts
+  else if(operatingmode == 0){
     switch (recieved_command){    
       case POSITION_CHECK://are you in position?
         if(inposition == true){
@@ -230,6 +272,8 @@ void wireReceiveEvent(int bytes){
     }
   }
 }
+
+//=======
   
 void wireRequestEvent(){
   Serial.print("i2C Request, answering: ");
@@ -250,6 +294,8 @@ void setup()
   pinMode(in3, OUTPUT);
   pinMode(in4, OUTPUT);
 
+  pinMode(radiopin, OUTPUT);
+
   Serial.begin(9600); //start debug
 
   Wire.begin(1);  //start I2C
@@ -260,7 +306,7 @@ void setup()
 //==========================================void loop================================
 void loop()
 {
-  set_speed(100); //set speed at 100
+  
 
   //after here is a state machine with only two states: remote mode or line following mode
 
@@ -306,9 +352,11 @@ void loop()
     
   }
 
+
+
   //remote controlled driving loop
   if(operatingmode == 1){  
     //empty. everything is done in interrupt
   }
 
- }
+}
