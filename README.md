@@ -1,5 +1,5 @@
 # D.E.E.Z. N.U.T.S.
-**Dynamic Eatable Emitting Zone - Nut Utility Transportation System**
+**Dynamic Eatables Emitting Zone - Nut Utility Transportation System**
 
 Hier sind alle Projektinformationen sowie die Software für das N.U.T.S Projekt im Rahmen des Moduls Projekt Robotik im Studiengang Systems Engineering von StudiumPlus zu finden.
 Anbei einige Bilder, die das Projektergebnis festhalten.
